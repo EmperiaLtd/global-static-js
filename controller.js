@@ -1,11 +1,13 @@
-function ToggleWindow(selector) {
+//Bindings
+
+function ToggleWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
         if ($(`#${selector}`).css("display") === "none") OpenWindow(selector);
         else CloseWindow(selector);
     } else console.log(`Could not find ${selector}`);
 }
 
-function OpenWindow(selector) {
+function OpenWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
         $(`#${selector}`).fadeIn(200);
         if (gtagExists())
@@ -16,9 +18,9 @@ function OpenWindow(selector) {
     } else console.log(`Could not find ${selector}`);
 }
 
-function CloseWindow(selector) {
+function CloseWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeOut(200);
+        $(`#${selector}`).fadeOut(200, ease);
         if (gtagExists())
             gtag("event", "close", {
                 event_category: "window",
