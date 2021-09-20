@@ -2,30 +2,23 @@
 
 function ToggleWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
-        if ($(`#${selector}`).css("display") === "none") OpenWindow(selector);
-        else CloseWindow(selector);
+        if ($(`#${selector}`).css("display") === "none")
+            OpenWindow(selector, duration, ease);
+        else CloseWindow(selector, duration, ease);
     } else console.log(`Could not find ${selector}`);
 }
 
 function OpenWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeIn(200);
-        if (gtagExists())
-            gtag("event", "open", {
-                event_category: "window",
-                event_label: selector,
-            });
+        $(`#${selector}`).fadeIn(duration, ease);
+        SendGAEvent("open", "window", selector);
     } else console.log(`Could not find ${selector}`);
 }
 
 function CloseWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeOut(200, ease);
-        if (gtagExists())
-            gtag("event", "close", {
-                event_category: "window",
-                event_label: selector,
-            });
+        $(`#${selector}`).fadeOut(duration, ease);
+        SendGAEvent("close", "window", selector);
     } else console.log(`Could not find ${selector}`);
 }
 
@@ -33,8 +26,13 @@ function IdIsValid(selector) {
     return $(`#${selector}`).length > 0;
 }
 
-function gtagExists() {
-    return typeof gtag === "function";
+function SendGAEvent(name, event_category, event_label) {
+    if (typeof gtag === "function")
+        gtag("event", name, {
+            event_category: event_category,
+            event_label: event_label,
+        });
+    else console.warn("gtag does not exist.");
 }
 
 function HotspotAnalytics(scene) {
