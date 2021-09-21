@@ -1,25 +1,25 @@
 //Bindings
 
+function OpenWindow(selector, duration = 200, ease = "linear") {
+    if (IdIsValid(selector)) {
+        $(`#${selector}`).fadeIn(duration, ease);
+        SendGAEvent("open", "window", selector);
+    } else console.warn(`Could not find ${selector}`);
+}
+
 function ToggleWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
         if ($(`#${selector}`).css("display") === "none")
             OpenWindow(selector, duration, ease);
         else CloseWindow(selector, duration, ease);
-    } else console.log(`Could not find ${selector}`);
-}
-
-function OpenWindow(selector, duration = 200, ease = "linear") {
-    if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeIn(duration, ease);
-        SendGAEvent("open", "window", selector);
-    } else console.log(`Could not find ${selector}`);
+    } else console.warn(`Could not find ${selector}`);
 }
 
 function CloseWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
         $(`#${selector}`).fadeOut(duration, ease);
         SendGAEvent("close", "window", selector);
-    } else console.log(`Could not find ${selector}`);
+    } else console.warn(`Could not find ${selector}`);
 }
 
 function IdIsValid(selector) {
@@ -70,7 +70,30 @@ let scale = 1,
     customImg;
 
 $(document).ready(function() {
-    console.log("Loaded");
+    //Event Bindings
+    var windowOpen = "data-window-open",
+        windowClose = "data-window-close",
+        windowToggle = "data-window-toggle";
+
+    $(`[${windowOpen}]`).click(function() {
+        var obj = JSON.parse($(this).attr(windowOpen));
+        Object.keys(obj).forEach(key => {
+            OpenWindow(obj[key].id, obj[key].duration, obj[key].ease);
+        });
+    });
+    $(`[${windowClose}]`).click(function() {
+        var obj = JSON.parse($(this).attr(windowClose));
+        Object.keys(obj).forEach(key => {
+            CloseWindow(obj[key].id, obj[key].duration, obj[key].ease);
+        });
+    });
+    $(`[${windowToggle}]`).click(function() {
+        var obj = JSON.parse($(this).attr(windowToggle));
+        Object.keys(obj).forEach(key => {
+            ToggleWindow(obj[key].id, obj[key].duration, obj[key].ease);
+        });
+    });
+    //End of event bindings
     imgOverlay = document.getElementById("img-overlay");
     zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
     customImg = document.getElementById("custom-img");
