@@ -17,6 +17,7 @@ function OpenWindow(selector) {
 }
 
 function CloseWindow(selector) {
+    console.log("I get called");
     if (IdIsValid(selector)) {
         $(`#${selector}`).fadeOut(200);
         if (gtagExists())
@@ -59,7 +60,6 @@ function UpdateProgressBar(value) {
     progressBar.value = Math.round(value * 100);
 }
 
-
 //image zooming
 let scale = 0.8,
     panning = false,
@@ -67,14 +67,13 @@ let scale = 0.8,
     pointY = 0,
     start = {
         x: 0,
-        y: 0
+        y: 0,
     },
     imgOverlay,
     zoomedImgWrapper,
     customImg;
 
 $(document).ready(function () {
-    console.log("Loaded");
     imgOverlay = document.getElementById("img-overlay");
     zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
     customImg = document.getElementById("custom-img");
@@ -97,6 +96,7 @@ $(document).ready(function () {
 
     $(".custom-img").click(function (e) {
         OpenWindow("img-overlay");
+        $("#img-overlay").css("display", "flex");
         $("#custom-zoomed-img").attr("src", e.target.src);
     });
 
@@ -104,7 +104,7 @@ $(document).ready(function () {
         e.preventDefault();
         start = {
             x: e.clientX - pointX,
-            y: e.clientY - pointY
+            y: e.clientY - pointY,
         };
         panning = true;
     };
@@ -120,26 +120,32 @@ $(document).ready(function () {
             return;
         }
 
-        let insideViewXAxis = isInViewportX(zoomedImgWrapper)
-        let insideViewYAxis = isInViewportY(zoomedImgWrapper)
-        let insideTop = insideTopBound(zoomedImgWrapper)
-        let insideBottom = insideBottomBound(zoomedImgWrapper)
-        let insideLeft = insideLeftBound(zoomedImgWrapper)
-        let insideRight = insideRightBound(zoomedImgWrapper)
+        let insideViewXAxis = isInViewportX(zoomedImgWrapper);
+        let insideViewYAxis = isInViewportY(zoomedImgWrapper);
+        let insideTop = insideTopBound(zoomedImgWrapper);
+        let insideBottom = insideBottomBound(zoomedImgWrapper);
+        let insideLeft = insideLeftBound(zoomedImgWrapper);
+        let insideRight = insideRightBound(zoomedImgWrapper);
 
         let updatedPointX = e.clientX - start.x;
         let updatedPointY = e.clientY - start.y;
 
         if (!insideViewXAxis && !insideViewYAxis) {
-            setPointsOutsideBothViewPort(insideTop, insideBottom, insideLeft, insideRight, updatedPointX, updatedPointY)
+            setPointsOutsideBothViewPort(
+                insideTop,
+                insideBottom,
+                insideLeft,
+                insideRight,
+                updatedPointX,
+                updatedPointY
+            );
         } else if (!insideViewXAxis) {
-            setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY)
+            setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY);
         } else if (!insideViewYAxis) {
-            setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX)
+            setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX);
         }
 
         setTransform();
-
     };
 
     zoomedImgWrapper.onwheel = function (e) {
@@ -159,7 +165,14 @@ $(document).ready(function () {
     };
 });
 
-function setPointsOutsideBothViewPort(insideTop, insideBottom, insideLeft, insideRight, updatedPointX, updatedPointY) {
+function setPointsOutsideBothViewPort(
+    insideTop,
+    insideBottom,
+    insideLeft,
+    insideRight,
+    updatedPointX,
+    updatedPointY
+) {
     if (insideTop) {
         if (pointY > updatedPointY) {
             pointY = updatedPointY;
@@ -168,7 +181,6 @@ function setPointsOutsideBothViewPort(insideTop, insideBottom, insideLeft, insid
         if (pointY < updatedPointY) {
             pointY = updatedPointY;
         }
-
     } else if (insideLeft) {
         if (pointX > updatedPointX) {
             pointX = updatedPointX;
@@ -177,7 +189,6 @@ function setPointsOutsideBothViewPort(insideTop, insideBottom, insideLeft, insid
         if (pointX < updatedPointX) {
             pointX = updatedPointX;
         }
-
     } else {
         pointX = updatedPointX;
         pointY = updatedPointY;
@@ -207,12 +218,10 @@ function setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX) {
         if (pointX < updatedPointX) {
             pointX = updatedPointX;
         }
-
     } else {
         pointX = updatedPointX;
     }
 }
-
 
 function isInViewportY(element) {
     const rect = element.getBoundingClientRect();
@@ -222,7 +231,6 @@ function isInViewportY(element) {
     );
 }
 
-
 function isInViewportX(element) {
     const rect = element.getBoundingClientRect();
     return (
@@ -231,28 +239,28 @@ function isInViewportX(element) {
     );
 }
 
-
 function insideLeftBound(element) {
     const rect = element.getBoundingClientRect();
-    return rect.left >= 0
+    return rect.left >= 0;
 }
-
 
 function insideRightBound(element) {
     const rect = element.getBoundingClientRect();
-    return rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    return (
+        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
 }
 
 function insideTopBound(element) {
     const rect = element.getBoundingClientRect();
-    return rect.top >= 0
+    return rect.top >= 0;
 }
-
-
 
 function insideBottomBound(element) {
     const rect = element.getBoundingClientRect();
-    return rect.bottom <= (window.innerHeight || document.documentElement.clientHeight)
+    return (
+        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight)
+    );
 }
 
 function resetZoomVariables() {
@@ -262,7 +270,7 @@ function resetZoomVariables() {
     pointY = 0;
     start = {
         x: 0,
-        y: 0
+        y: 0,
     };
 }
 
