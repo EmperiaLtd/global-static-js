@@ -74,12 +74,12 @@ let scale = 0.8,
     customImg;
 
 $(document).ready(function() {
-
     $(".shareButton").click(function(e) {
+        var viewParams = getKrpanoViewParameters();
+        var url = viewParams ?
+            `${window.location.origin}?${jQuery.param(viewParams)}` :
+            window.location.origin;
         if (navigator.share) {
-            var viewParams = getKrpanoViewParameters();
-            var url = viewParams ? `${window.location.origin}?${jQuery.param(viewParams)}` :
-                window.location.origin;
             navigator.share({
                 title: `
                             Experience the ${document.title}
@@ -92,7 +92,11 @@ $(document).ready(function() {
             });
         } else {
             console.warn("Could not find navigator, copying to clipboard.");
-            navigator.clipboard.writeText(window.location.origin);
+            if (!navigator.clipboard) {
+                window.prompt("Copy to clipboard: Ctrl+C, Enter", url);
+            } else {
+                navigator.clipboard.writeText(window.location.origin);
+            }
         }
     });
 
