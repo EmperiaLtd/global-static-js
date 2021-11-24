@@ -74,8 +74,8 @@ let scale = 0.8,
     customImg;
 
 
-$(document).ready(function() {
-    $(".shareButton").click(function(e) {
+$(document).ready(function () {
+    $(".shareButton").click(function (e) {
         var viewParams = getKrpanoViewParameters();
         var url = viewParams ?
             `${window.location.origin}?${jQuery.param(viewParams)}` :
@@ -105,7 +105,29 @@ $(document).ready(function() {
     zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
     customImg = document.getElementById("custom-img");
 
-    $("#img-overlay").click(function(e) {
+    $("[data-window-show]").click(function (index) {
+        let eventElId = JSON.parse($(this).attr('data-window-show'))[0]?.id;
+        OpenWindow(eventElId);
+    }
+    )
+
+    $("[data-window-hide]").click(function (index) {
+        let eventElId = JSON.parse($(this).attr('data-window-hide'))[0]?.id;
+        CloseWindow(eventElId);
+    }
+    )
+
+    $("[data-window-toggle]").click(function (index) {
+        let eventElId = JSON.parse($(this).attr('data-window-toggle'))[0]?.id;
+        if (!$(`#${eventElId}`).css('display') || $(`#${eventElId}`).css('display') == 'none') {
+            OpenWindow(eventElId);
+        } else {
+            CloseWindow(eventElId);
+        }
+    }
+    )
+
+    $("#img-overlay").click(function (e) {
         if (e.target.id == "img-overlay") {
             CloseWindow("img-overlay");
         }
@@ -113,21 +135,21 @@ $(document).ready(function() {
 
     $("#img-overlay")
         .find("#close")
-        .click(function() {
+        .click(function () {
             CloseWindow("img-overlay");
         });
 
-    $(".bg-veil").click(function(e) {
+    $(".bg-veil").click(function (e) {
         CloseWindow(e.target.parentElement.id);
     });
 
-    $(".custom-img").click(function(e) {
+    $(".custom-img").click(function (e) {
         OpenWindow("img-overlay");
         $("#img-overlay").css("display", "flex");
         $("#custom-zoomed-img").attr("src", e.target.src);
     });
 
-    zoomedImgWrapper.onmousedown = function(e) {
+    zoomedImgWrapper.onmousedown = function (e) {
         e.preventDefault();
         start = {
             x: e.clientX - pointX,
@@ -136,12 +158,12 @@ $(document).ready(function() {
         panning = true;
     };
 
-    zoomedImgWrapper.onmouseup = function(e) {
+    zoomedImgWrapper.onmouseup = function (e) {
         e.preventDefault();
         panning = false;
     };
 
-    zoomedImgWrapper.onmousemove = function(e) {
+    zoomedImgWrapper.onmousemove = function (e) {
         e.preventDefault();
         if (!panning) {
             return;
@@ -175,7 +197,7 @@ $(document).ready(function() {
         setTransform();
     };
 
-    zoomedImgWrapper.onwheel = function(e) {
+    zoomedImgWrapper.onwheel = function (e) {
         e.preventDefault();
         var delta = e.wheelDelta ? e.wheelDelta : -e.deltaY;
         delta > 0 ? (scale *= 1.2) : (scale /= 1.2);
