@@ -1,5 +1,3 @@
-//Bindings
-
 function OpenWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
         $(`#${selector}`).fadeIn(duration, ease);
@@ -15,8 +13,7 @@ function ToggleWindow(selector, duration = 200, ease = "linear") {
     } else console.warn(`Could not find ${selector}`);
 }
 
-function CloseWindow(selector) {
-    console.log("I get called");
+function CloseWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
         $(`#${selector}`).fadeOut(duration, ease);
         SendGAEvent("close", "window", selector);
@@ -61,8 +58,22 @@ function UpdateProgressBar(value) {
 }
 
 //image zooming
+
+let TouchState = {
+    NONE: 0,
+    PANNING: 1,
+    PINCHING: 2,
+};
+Object.freeze(TouchState);
+
+let currentState = TouchState.NONE;
+
 let scale = 0.8,
     panning = false,
+    pinching = false,
+    pinchingSensitivity = 1.03,
+    pinchingThreshold = 4,
+    previousPinch = 0,
     pointX = 0,
     pointY = 0,
     start = {
@@ -74,6 +85,140 @@ let scale = 0.8,
     customImg;
 
 $(document).ready(function() {
+    imgOverlay = document.getElementById("img-overlay");
+    zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
+    customImg = document.getElementById("custom-img");
+
+    zoomedImgWrapper.onmousedown = function(e) { OnMouseDown(e) };
+    zoomedImgWrapper.onmousemove = function(e) { OnMouseMove(e) };
+    zoomedImgWrapper.onmouseup = function(e) { OnMouseUp(e) };
+    zoomedImgWrapper.onwheel = function(e) { OnWheel(e) };
+
+    zoomedImgWrapper.ontouchstart = function(e) { OnTouchStart(e) };
+    zoomedImgWrapper.ontouchmove = function(e) { OnTouchMove(e) };
+    zoomedImgWrapper.ontouchend = function(e) { OnTouchEnd(e) };
+
+    //Start functions
+    function OnTouchStart(e) {
+        if (e.touches.length >= 2) {
+            currentState = TouchState.PINCHING;
+        } else if (e.touches.length == 1) {
+            currentState = TouchState.PANNING;
+            var touch = e.touches[0] || e.changedTouches[0];
+            e.preventDefault();
+            startTouch(touch.clientX, touch.clientY);
+        }
+        console.log(currentState);
+    }
+
+    function OnMouseDown(e) {
+        e.preventDefault();
+        startTouch(e.clientX, e.clientY);
+        panning = true;
+    }
+
+    function startTouch(positionX, positionY) {
+        start = {
+            x: positionX - pointX,
+            y: positionY - pointY
+        };
+    }
+
+    //Move functions
+    function OnTouchMove(e) {
+        if (currentState == TouchState.PANNING) {
+            var touch = e.touches[0] || e.changedTouches[0];
+            OnSingleMove(touch.clientX, touch.clientY);
+        } else if (currentState == TouchState.PINCHING) {
+            OnPinch(e);
+        }
+    }
+
+    function OnMouseMove(e) {
+        if (!panning) { return; }
+        e.preventDefault();
+        OnSingleMove(e.clientX, e.clientY);
+    }
+
+    function OnSingleMove(positionX, positionY) {
+        let insideViewXAxis = isInViewportX(zoomedImgWrapper);
+        let insideViewYAxis = isInViewportY(zoomedImgWrapper);
+        let insideTop = insideTopBound(zoomedImgWrapper);
+        let insideBottom = insideBottomBound(zoomedImgWrapper);
+        let insideLeft = insideLeftBound(zoomedImgWrapper);
+        let insideRight = insideRightBound(zoomedImgWrapper);
+
+        let updatedPointX = positionX - start.x;
+        let updatedPointY = positionY - start.y;
+
+        if (!insideViewXAxis && !insideViewYAxis) {
+            setPointsOutsideBothViewPort(
+                insideTop,
+                insideBottom,
+                insideLeft,
+                insideRight,
+                updatedPointX,
+                updatedPointY
+            );
+        } else if (!insideViewXAxis) {
+            setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY);
+        } else if (!insideViewYAxis) {
+            setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX);
+        }
+
+        setTransform();
+    }
+    //Scale functions
+    function OnWheel(e) {
+        e.preventDefault();
+        Scale(e.wheelDelta ? e.wheelDelta : -e.deltaY)
+    }
+
+    function OnPinch(e) {
+        var currentPinch = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY);
+
+        if (previousPinch == 0) {
+            previousPinch = currentPinch;
+        } else {
+            if (Math.abs(currentPinch - previousPinch) > pinchingThreshold) {
+                e.preventDefault();
+                if (currentPinch < previousPinch) Scale(-1, pinchingSensitivity);
+                else Scale(1, pinchingSensitivity);
+                previousPinch = currentPinch;
+            }
+        }
+    }
+
+    function Scale(delta, sensitivity = 1.1) {
+        delta > 0 ? (scale *= sensitivity) : (scale /= sensitivity);
+        if (scale > 3) {
+            scale = 3;
+        } else if (scale < 0.8) {
+            scale = 0.8;
+        }
+
+        setTransform();
+    }
+    //End functions
+
+    function OnMouseUp(e) {
+        console.log("OnMouseUp");
+        e.preventDefault();
+        panning = false;
+    }
+
+    function OnTouchEnd(e) {
+        if (e.touches.length >= 2) {
+            currentState = TouchState.PINCHING;
+        } else if (e.touches.length === 1) {
+            previousPinch = 0;
+            currentState = TouchState.PANNING;
+        } else {
+            currentState = TouchState.NONE;
+        }
+    }
     $(".shareButton").click(function(e) {
         var viewParams = getKrpanoViewParameters();
         var url = viewParams ?
@@ -100,10 +245,6 @@ $(document).ready(function() {
         }
     });
 
-    imgOverlay = document.getElementById("img-overlay");
-    zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
-    customImg = document.getElementById("custom-img");
-
     $("[data-window-show]").click(function(index) {
         let eventElId = JSON.parse($(this).attr("data-window-show"))[0].id;
         OpenWindow(eventElId);
@@ -111,6 +252,7 @@ $(document).ready(function() {
 
     $("[data-window-hide]").click(function(index) {
         let eventElId = JSON.parse($(this).attr("data-window-hide"))[0].id;
+        console.log(eventElId);
         CloseWindow(eventElId);
     });
 
@@ -147,69 +289,7 @@ $(document).ready(function() {
         $("#custom-zoomed-img").attr("src", e.target.src);
     });
 
-    zoomedImgWrapper.onmousedown = function(e) {
-        e.preventDefault();
-        start = {
-            x: e.clientX - pointX,
-            y: e.clientY - pointY,
-        };
-        panning = true;
-    };
 
-    zoomedImgWrapper.onmouseup = function(e) {
-        e.preventDefault();
-        panning = false;
-    };
-
-    zoomedImgWrapper.onmousemove = function(e) {
-        e.preventDefault();
-        if (!panning) {
-            return;
-        }
-
-        let insideViewXAxis = isInViewportX(zoomedImgWrapper);
-        let insideViewYAxis = isInViewportY(zoomedImgWrapper);
-        let insideTop = insideTopBound(zoomedImgWrapper);
-        let insideBottom = insideBottomBound(zoomedImgWrapper);
-        let insideLeft = insideLeftBound(zoomedImgWrapper);
-        let insideRight = insideRightBound(zoomedImgWrapper);
-
-        let updatedPointX = e.clientX - start.x;
-        let updatedPointY = e.clientY - start.y;
-
-        if (!insideViewXAxis && !insideViewYAxis) {
-            setPointsOutsideBothViewPort(
-                insideTop,
-                insideBottom,
-                insideLeft,
-                insideRight,
-                updatedPointX,
-                updatedPointY
-            );
-        } else if (!insideViewXAxis) {
-            setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY);
-        } else if (!insideViewYAxis) {
-            setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX);
-        }
-
-        setTransform();
-    };
-
-    zoomedImgWrapper.onwheel = function(e) {
-        e.preventDefault();
-        var delta = e.wheelDelta ? e.wheelDelta : -e.deltaY;
-        delta > 0 ? (scale *= 1.2) : (scale /= 1.2);
-        if (scale > 3) {
-            scale = 3;
-        } else if (scale < 0.8) {
-            scale = 0.8;
-        }
-
-        pointX = 0;
-        pointY = 0;
-
-        setTransform();
-    };
 });
 
 function setPointsOutsideBothViewPort(
