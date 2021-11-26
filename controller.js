@@ -68,21 +68,30 @@ Object.freeze(TouchState);
 
 let currentState = TouchState.NONE;
 
-let scale = 0.8,
-    panning = false,
-    pinching = false,
-    pinchingSensitivity = 1.03,
-    pinchingThreshold = 4,
-    previousPinch = 0,
-    pointX = 0,
-    pointY = 0,
-    start = {
-        x: 0,
-        y: 0,
-    },
-    imgOverlay,
-    zoomedImgWrapper,
-    customImg;
+class Position {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+let imgOverlay, zoomedImgWrapper, customImg;
+
+class ImageInteractionProps {
+    constructor() {
+        this.scale = 1,
+            this.panning = false,
+            this.pinching = false,
+            this.pinchingSensitivity = 1.03,
+            this.scrollingSensitivity = 1.05,
+            this.pinchingThreshold = 5,
+            this.previousPinch = 0,
+            this.scaleBounds = new Position(0.8, 3),
+            this.currentPos = new Position(0, 0),
+            this.startPos = new Position(0, 0);
+    }
+}
+let defaultProperties = new ImageInteractionProps();
+let current = new ImageInteractionProps();
 
 $(document).ready(function() {
     imgOverlay = document.getElementById("img-overlay");
@@ -106,72 +115,44 @@ $(document).ready(function() {
             currentState = TouchState.PANNING;
             var touch = e.touches[0] || e.changedTouches[0];
             e.preventDefault();
-            startTouch(touch.clientX, touch.clientY);
+            StartTouch(touch.clientX, touch.clientY);
         }
-        console.log(currentState);
     }
 
     function OnMouseDown(e) {
         e.preventDefault();
-        startTouch(e.clientX, e.clientY);
-        panning = true;
+        StartTouch(e.clientX, e.clientY);
+        current.panning = true;
     }
 
-    function startTouch(positionX, positionY) {
-        start = {
-            x: positionX - pointX,
-            y: positionY - pointY
-        };
+    function StartTouch(positionX, positionY) {
+        current.startPos = new Position(positionX - current.currentPos.x, positionY - current.currentPos.y);
     }
 
     //Move functions
     function OnTouchMove(e) {
         if (currentState == TouchState.PANNING) {
             var touch = e.touches[0] || e.changedTouches[0];
-            OnSingleMove(touch.clientX, touch.clientY);
+            StartMove(touch.clientX, touch.clientY);
         } else if (currentState == TouchState.PINCHING) {
             OnPinch(e);
         }
     }
 
     function OnMouseMove(e) {
-        if (!panning) { return; }
+        if (!current.panning) { return; }
         e.preventDefault();
-        OnSingleMove(e.clientX, e.clientY);
+        StartMove(e.clientX, e.clientY);
     }
 
-    function OnSingleMove(positionX, positionY) {
-        let insideViewXAxis = isInViewportX(zoomedImgWrapper);
-        let insideViewYAxis = isInViewportY(zoomedImgWrapper);
-        let insideTop = insideTopBound(zoomedImgWrapper);
-        let insideBottom = insideBottomBound(zoomedImgWrapper);
-        let insideLeft = insideLeftBound(zoomedImgWrapper);
-        let insideRight = insideRightBound(zoomedImgWrapper);
-
-        let updatedPointX = positionX - start.x;
-        let updatedPointY = positionY - start.y;
-
-        if (!insideViewXAxis && !insideViewYAxis) {
-            setPointsOutsideBothViewPort(
-                insideTop,
-                insideBottom,
-                insideLeft,
-                insideRight,
-                updatedPointX,
-                updatedPointY
-            );
-        } else if (!insideViewXAxis) {
-            setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY);
-        } else if (!insideViewYAxis) {
-            setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX);
-        }
-
-        setTransform();
+    function StartMove(positionX, positionY) {
+        setTransform(positionX - current.startPos.x, positionY - current.startPos.y);
     }
     //Scale functions
     function OnWheel(e) {
         e.preventDefault();
-        Scale(e.wheelDelta ? e.wheelDelta : -e.deltaY)
+        OnScale(e.wheelDelta ? e.wheelDelta : -e.deltaY,
+            defaultProperties.scrollingSensitivity)
     }
 
     function OnPinch(e) {
@@ -179,46 +160,40 @@ $(document).ready(function() {
             e.touches[0].clientX - e.touches[1].clientX,
             e.touches[0].clientY - e.touches[1].clientY);
 
-        if (previousPinch == 0) {
-            previousPinch = currentPinch;
+        if (current.previousPinch == 0) {
+            current.previousPinch = currentPinch;
         } else {
-            if (Math.abs(currentPinch - previousPinch) > pinchingThreshold) {
+            if (Math.abs(currentPinch - current.previousPinch) > defaultProperties.pinchingThreshold) {
                 e.preventDefault();
-                if (currentPinch < previousPinch) Scale(-1, pinchingSensitivity);
-                else Scale(1, pinchingSensitivity);
-                previousPinch = currentPinch;
+                if (currentPinch < current.previousPinch) OnScale(-1, defaultProperties.pinchingSensitivity);
+                else OnScale(1, defaultProperties.pinchingSensitivity);
+                current.previousPinch = currentPinch;
             }
         }
     }
 
-    function Scale(delta, sensitivity = 1.1) {
-        delta > 0 ? (scale *= sensitivity) : (scale /= sensitivity);
-        if (scale > 3) {
-            scale = 3;
-        } else if (scale < 0.8) {
-            scale = 0.8;
-        }
-
+    function OnScale(delta, sensitivity = 1.1) {
+        delta > 0 ? (current.scale *= sensitivity) : (current.scale /= sensitivity);
+        current.scale = Math.min(Math.max(current.scale, current.scaleBounds.x), current.scaleBounds.y);
         setTransform();
     }
     //End functions
-
     function OnMouseUp(e) {
-        console.log("OnMouseUp");
         e.preventDefault();
-        panning = false;
+        current.panning = false;
     }
 
     function OnTouchEnd(e) {
         if (e.touches.length >= 2) {
             currentState = TouchState.PINCHING;
         } else if (e.touches.length === 1) {
-            previousPinch = 0;
+            current.previousPinch = 0;
             currentState = TouchState.PANNING;
         } else {
             currentState = TouchState.NONE;
         }
     }
+
     $(".shareButton").click(function(e) {
         var viewParams = getKrpanoViewParameters();
         var url = viewParams ?
@@ -252,7 +227,6 @@ $(document).ready(function() {
 
     $("[data-window-hide]").click(function(index) {
         let eventElId = JSON.parse($(this).attr("data-window-hide"))[0].id;
-        console.log(eventElId);
         CloseWindow(eventElId);
     });
 
@@ -292,115 +266,6 @@ $(document).ready(function() {
 
 });
 
-function setPointsOutsideBothViewPort(
-    insideTop,
-    insideBottom,
-    insideLeft,
-    insideRight,
-    updatedPointX,
-    updatedPointY
-) {
-    if (insideTop) {
-        if (pointY > updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else if (insideBottom) {
-        if (pointY < updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else if (insideLeft) {
-        if (pointX > updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else if (insideRight) {
-        if (pointX < updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else {
-        pointX = updatedPointX;
-        pointY = updatedPointY;
-    }
-}
-
-function setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY) {
-    if (insideTop) {
-        if (pointY > updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else if (insideBottom) {
-        if (pointY < updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else {
-        pointY = updatedPointY;
-    }
-}
-
-function setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX) {
-    if (insideLeft) {
-        if (pointX > updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else if (insideRight) {
-        if (pointX < updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else {
-        pointX = updatedPointX;
-    }
-}
-
-function isInViewportY(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.left >= 0 &&
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
-}
-
-function isInViewportX(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.top >= 0 &&
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight)
-    );
-}
-
-function insideLeftBound(element) {
-    const rect = element.getBoundingClientRect();
-    return rect.left >= 0;
-}
-
-function insideRightBound(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
-}
-
-function insideTopBound(element) {
-    const rect = element.getBoundingClientRect();
-    return rect.top >= 0;
-}
-
-function insideBottomBound(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight)
-    );
-}
-
-function resetZoomVariables() {
-    scale = 0.8;
-    panning = false;
-    pointX = 0;
-    pointY = 0;
-    start = {
-        x: 0,
-        y: 0,
-    };
-}
-
 function zoomInImage() {
     imgOverlay.style.display = "flex";
     let imageSrc = customImg.src;
@@ -408,15 +273,44 @@ function zoomInImage() {
 }
 
 function zoomOutImage() {
+    console.log("called");
     CloseWindow("img-overlay");
-    zoomedImgWrapper.style.transform = "scale(0.8) translate(0px, 0px)";
-
-    resetZoomVariables();
+    zoomedImgWrapper.style.transform = "scale(" + defaultProperties.scale + ") translate(0 px, 0 px)";
+    current = defaultProperties;
 }
 
-function setTransform() {
+function setTransform(posX = 0, posY = 0) {
     zoomedImgWrapper.style.transform =
-        "translate(" + pointX + "px, " + pointY + "px) scale(" + scale + ")";
+        "translate(" + current.currentPos.x + "px, " + current.currentPos.y + "px) scale(" + current.scale + ")";
+
+    let translation = GetCurrentTranslation(zoomedImgWrapper);
+
+    if (posX == 0) posX = translation.x;
+    if (posY == 0) posY = translation.y;
+
+    if (zoomedImgWrapper.getBoundingClientRect().width > window.innerWidth) {
+        var clampX = (zoomedImgWrapper.getBoundingClientRect().width - window.innerWidth) / 2;
+        current.currentPos.x = Math.min(Math.max(posX, -clampX), clampX);
+    } else {
+        current.currentPos.x = 0;
+    }
+    if (zoomedImgWrapper.getBoundingClientRect().height > window.innerHeight) {
+        var clampY = (zoomedImgWrapper.getBoundingClientRect().height - window.innerHeight) / 2;
+        current.currentPos.y = Math.min(Math.max(posY, -clampY), clampY);
+    } else {
+        current.currentPos.y = 0;
+    }
+    zoomedImgWrapper.style.transform =
+        "translate(" + current.currentPos.x + "px, " + current.currentPos.y + "px) scale(" + current.scale + ")";
+}
+
+function GetCurrentTranslation(element) {
+    const style = window.getComputedStyle(element)
+    const matrix = new DOMMatrixReadOnly(style.transform)
+    return {
+        x: matrix.m41,
+        y: matrix.m42
+    }
 }
 
 function getKrpanoViewParameters() {
@@ -424,10 +318,10 @@ function getKrpanoViewParameters() {
     if (krpano) {
         return {
             startscene: krpano.get("xml.scene"),
-            hlookat: String(krpano.get("view.hlookat")).slice(0, 5),
-            vlookat: String(krpano.get("view.vlookat")).slice(0, 5),
+            hlookat: (parseFloat(krpano.get("view.hlookat")) % 360).toFixed(2),
+            vlookat: parseFloat(krpano.get("view.vlookat")).toFixed(2),
         };
     }
-    console.log("failed to get parameters.");
+    console.warn("failed to get parameters.");
     return null;
 }
