@@ -93,19 +93,19 @@ class ImageInteractionProps {
 let defaultProperties = new ImageInteractionProps();
 let current = new ImageInteractionProps();
 
-$(document).ready(function() {
+$(document).ready(function () {
     imgOverlay = document.getElementById("img-overlay");
     zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
     customImg = document.getElementById("custom-img");
 
-    zoomedImgWrapper.onmousedown = function(e) { OnMouseDown(e) };
-    zoomedImgWrapper.onmousemove = function(e) { OnMouseMove(e) };
-    zoomedImgWrapper.onmouseup = function(e) { OnMouseUp(e) };
-    zoomedImgWrapper.onwheel = function(e) { OnWheel(e) };
+    zoomedImgWrapper.onmousedown = function (e) { OnMouseDown(e) };
+    zoomedImgWrapper.onmousemove = function (e) { OnMouseMove(e) };
+    zoomedImgWrapper.onmouseup = function (e) { OnMouseUp(e) };
+    zoomedImgWrapper.onwheel = function (e) { OnWheel(e) };
 
-    zoomedImgWrapper.ontouchstart = function(e) { OnTouchStart(e) };
-    zoomedImgWrapper.ontouchmove = function(e) { OnTouchMove(e) };
-    zoomedImgWrapper.ontouchend = function(e) { OnTouchEnd(e) };
+    zoomedImgWrapper.ontouchstart = function (e) { OnTouchStart(e) };
+    zoomedImgWrapper.ontouchmove = function (e) { OnTouchMove(e) };
+    zoomedImgWrapper.ontouchend = function (e) { OnTouchEnd(e) };
 
     //Start functions
     function OnTouchStart(e) {
@@ -194,7 +194,7 @@ $(document).ready(function() {
         }
     }
 
-    $(".shareButton").click(function(e) {
+    $(".shareButton").click(function (e) {
         var viewParams = getKrpanoViewParameters();
         var url = viewParams ?
             `${window.location.href}?${jQuery.param(viewParams)}` :
@@ -220,17 +220,17 @@ $(document).ready(function() {
         }
     });
 
-    $("[data-window-show]").click(function(index) {
+    $("[data-window-show]").click(function (index) {
         let eventElId = JSON.parse($(this).attr("data-window-show"))[0].id;
         OpenWindow(eventElId);
     });
 
-    $("[data-window-hide]").click(function(index) {
+    $("[data-window-hide]").click(function (index) {
         let eventElId = JSON.parse($(this).attr("data-window-hide"))[0].id;
         CloseWindow(eventElId);
     });
 
-    $("[data-window-toggle]").click(function(index) {
+    $("[data-window-toggle]").click(function (index) {
         let eventElId = JSON.parse($(this).attr("data-window-toggle"))[0].id;
         if (!$(`#${eventElId}`).css("display") ||
             $(`#${eventElId}`).css("display") == "none"
@@ -241,23 +241,29 @@ $(document).ready(function() {
         }
     });
 
-    $("#img-overlay").click(function(e) {
+    $("#img-overlay").click(function (e) {
         if (e.target.id == "img-overlay") {
             CloseWindow("img-overlay");
+            $("#custom-zoomed-img").attr("src", "");
+            zoomedImgWrapper.style.transform = "scale(" + defaultProperties.scale + ") translate(0 px, 0 px)";
+            current = defaultProperties;
         }
     });
 
     $("#img-overlay")
         .find("#close")
-        .click(function() {
+        .click(function () {
             CloseWindow("img-overlay");
+            $("#custom-zoomed-img").attr("src", "");
+            zoomedImgWrapper.style.transform = "scale(" + defaultProperties.scale + ") translate(0 px, 0 px)";
+            current = defaultProperties;
         });
 
-    $(".bg-veil").click(function(e) {
+    $(".bg-veil").click(function (e) {
         CloseWindow(e.target.parentElement.id);
     });
 
-    $(".custom-img").click(function(e) {
+    $(".custom-img").click(function (e) {
         OpenWindow("img-overlay");
         $("#img-overlay").css("display", "flex");
         $("#custom-zoomed-img").attr("src", e.target.src);
