@@ -78,16 +78,18 @@ let imgOverlay, zoomedImgWrapper, customImg;
 
 class ImageInteractionProps {
     constructor() {
-        this.scale = 1,
-            this.panning = false,
-            this.pinching = false,
-            this.pinchingSensitivity = 1.03,
-            this.scrollingSensitivity = 1.05,
-            this.pinchingThreshold = 5,
-            this.previousPinch = 0,
-            this.scaleBounds = new Position(0.8, 3),
-            this.currentPos = new Position(0, 0),
-            this.startPos = new Position(0, 0);
+        this.scale = 0.8;
+        this.panning = false;
+        this.pinching = false;
+        this.pinchingSensitivity = 1.03;
+        this.scrollingSensitivity = 1.05;
+        this.pinchingThreshold = 5;
+        this.previousPinch = 0;
+        this.scaleBounds = new Position(0.8, 3);
+        this.currentPos = new Position(0, 0);
+        this.startPos = new Position(0, 0);
+        this.widthDifference = 0;
+        this.heightDifference = 0;
     }
 }
 let defaultProperties = new ImageInteractionProps();
@@ -106,6 +108,8 @@ $(document).ready(function () {
     zoomedImgWrapper.ontouchstart = function (e) { OnTouchStart(e) };
     zoomedImgWrapper.ontouchmove = function (e) { OnTouchMove(e) };
     zoomedImgWrapper.ontouchend = function (e) { OnTouchEnd(e) };
+
+    var scrollTimer;
 
     //Start functions
     function OnTouchStart(e) {
@@ -148,12 +152,42 @@ $(document).ready(function () {
     function StartMove(positionX, positionY) {
         setTransform(positionX - current.startPos.x, positionY - current.startPos.y);
     }
+
     //Scale functions
     function OnWheel(e) {
         e.preventDefault();
         OnScale(e.wheelDelta ? e.wheelDelta : -e.deltaY,
-            defaultProperties.scrollingSensitivity)
+            defaultProperties.scrollingSensitivity);
+
+        let wrapperClientWidth = zoomedImgWrapper.getBoundingClientRect().width;
+        let wrapperClientHeight = zoomedImgWrapper.getBoundingClientRect().height;
+
+        let widthOverflow = wrapperClientWidth > window.innerWidth;
+        let heightOverflow = wrapperClientHeight > window.innerHeight;
+
+        clearTimeout(scrollTimer);
+
+        if (widthOverflow || heightOverflow) {
+            $("#img-overlay")
+                .find("#scaledClose").css("display", "none")
+        } else {
+            $("#img-overlay")
+                .find("#close").css("display", "none")
+        }
+
+        scrollTimer = setTimeout(function () {
+            if (widthOverflow || heightOverflow) {
+                $("#img-overlay")
+                    .find("#scaledClose").css("display", "block")
+            } else {
+                $("#img-overlay")
+                    .find("#close").css("display", "block")
+            }
+        }, 200);
+
     }
+
+
 
     function OnPinch(e) {
         var currentPinch = Math.hypot(
@@ -243,20 +277,39 @@ $(document).ready(function () {
 
     $("#img-overlay").click(function (e) {
         if (e.target.id == "img-overlay") {
+
             CloseWindow("img-overlay");
-            $("#custom-zoomed-img").attr("src", "");
-            zoomedImgWrapper.style.transform = "scale(" + defaultProperties.scale + ") translate(0 px, 0 px)";
-            current = defaultProperties;
+            current = new ImageInteractionProps();
+            defaultProperties = new ImageInteractionProps();
+            setTimeout(() => {
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $("#custom-zoomed-img").attr("src", "");
+            }, 250)
         }
     });
 
-    $("#img-overlay")
-        .find("#close")
+    $("#close")
         .click(function () {
             CloseWindow("img-overlay");
-            $("#custom-zoomed-img").attr("src", "");
-            zoomedImgWrapper.style.transform = "scale(" + defaultProperties.scale + ") translate(0 px, 0 px)";
-            current = defaultProperties;
+            current = new ImageInteractionProps();
+            defaultProperties = new ImageInteractionProps();
+            setTimeout(() => {
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $("#custom-zoomed-img").attr("src", "");
+            }, 250)
+        });
+
+    $("#img-overlay")
+        .find("#scaledClose")
+        .click(function () {
+
+            CloseWindow("img-overlay");
+            current = new ImageInteractionProps();
+            defaultProperties = new ImageInteractionProps();
+            setTimeout(() => {
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $("#custom-zoomed-img").attr("src", "");
+            }, 250)
         });
 
     $(".bg-veil").click(function (e) {
@@ -264,9 +317,13 @@ $(document).ready(function () {
     });
 
     $(".custom-img").click(function (e) {
-        OpenWindow("img-overlay");
+        $("#img-overlay").find("#scaledClose").css("display", "none")
+        $("#img-overlay").find("#close").css("display", "flex")
         $("#img-overlay").css("display", "flex");
         $("#custom-zoomed-img").attr("src", e.target.src);
+        current.widthDifference = (window.innerWidth - zoomedImgWrapper.getBoundingClientRect().width) / 2
+        current.heightDifference = (window.innerHeight - zoomedImgWrapper.getBoundingClientRect().height) / 2
+        OpenWindow("img-overlay");
     });
 
 
@@ -279,10 +336,10 @@ function zoomInImage() {
 }
 
 function zoomOutImage() {
-    console.log("called");
     CloseWindow("img-overlay");
+    current = new ImageInteractionProps();
+    defaultProperties = new ImageInteractionProps();
     zoomedImgWrapper.style.transform = "scale(" + defaultProperties.scale + ") translate(0 px, 0 px)";
-    current = defaultProperties;
 }
 
 function setTransform(posX = 0, posY = 0) {
@@ -294,18 +351,103 @@ function setTransform(posX = 0, posY = 0) {
     if (posX == 0) posX = translation.x;
     if (posY == 0) posY = translation.y;
 
-    if (zoomedImgWrapper.getBoundingClientRect().width > window.innerWidth) {
-        var clampX = (zoomedImgWrapper.getBoundingClientRect().width - window.innerWidth) / 2;
+    let wrapperClientWidth = zoomedImgWrapper.getBoundingClientRect().width;
+    let wrapperClientHeight = zoomedImgWrapper.getBoundingClientRect().height;
+
+    let widthOverflow = wrapperClientWidth > window.innerWidth;
+    let heightOverflow = wrapperClientHeight > window.innerHeight;
+
+    if (widthOverflow && heightOverflow) {
+
+        $("#img-overlay")
+            .find("#close").css("display", "none")
+
+        let preTop = $("#img-overlay").find("#close").css("top")
+        $("#img-overlay")
+            .find("#scaledClose").css("top", preTop)
+
+        let preRight = $("#img-overlay").find("#close").css("right")
+        $("#img-overlay")
+            .find("#scaledClose").css("right", preRight)
+
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "block")
+
+        var clampX = (wrapperClientWidth - window.innerWidth) / 2;
         current.currentPos.x = Math.min(Math.max(posX, -clampX), clampX);
-    } else {
-        current.currentPos.x = 0;
-    }
-    if (zoomedImgWrapper.getBoundingClientRect().height > window.innerHeight) {
-        var clampY = (zoomedImgWrapper.getBoundingClientRect().height - window.innerHeight) / 2;
+        var clampY = (wrapperClientHeight - window.innerHeight) / 2;
         current.currentPos.y = Math.min(Math.max(posY, -clampY), clampY);
+
+
+    } else if (widthOverflow) {
+
+        $("#img-overlay")
+            .find("#close").css("display", "none")
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "block")
+
+        let existingDiff = current.heightDifference
+        let customH = (window.innerHeight - wrapperClientHeight) / 2;
+        let preTop = parseInt($("#img-overlay").find("#close").css("top"), 10);
+
+        if (customH >= preTop) {
+
+            let total = customH + preTop
+            $("#img-overlay")
+                .find("#scaledClose").css("top", `${total}px`)
+
+            if (existingDiff > customH) {
+                console.log("Image Width Overflow Increasing")
+            } else if (existingDiff < customH) {
+                console.log("Image Width Overflow Decreasing")
+            }
+
+            current.heightDifference = customH
+        }
+
+        var clampX = (wrapperClientWidth - window.innerWidth) / 2;
+        current.currentPos.x = Math.min(Math.max(posX, -clampX), clampX);
+
+    } else if (heightOverflow) {
+
+        $("#img-overlay")
+            .find("#close").css("display", "none")
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "block")
+
+        let existingDiff = current.widthDifference
+        let customW = (window.innerWidth - wrapperClientWidth) / 2;
+        let preRight = parseInt($("#img-overlay").find("#close").css("right"), 10);
+
+        if (customW >= preRight) {
+
+            let total = customW + preRight
+            $("#img-overlay")
+                .find("#scaledClose").css("right", `${total}px`)
+
+            if (existingDiff > customW) {
+                console.log("Image Height Overflow Increasing")
+            } else if (existingDiff < customW) {
+                console.log("Image Height Overflow Decreasing")
+            }
+
+            current.widthDifference = customW
+        }
+
+        var clampY = (wrapperClientHeight - window.innerHeight) / 2;
+        current.currentPos.y = Math.min(Math.max(posY, -clampY), clampY);
+
     } else {
         current.currentPos.y = 0;
+        $("#img-overlay")
+            .find("#close").css("display", "block")
+
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "none")
+
+        current.currentPos.x = 0;
     }
+
     zoomedImgWrapper.style.transform =
         "translate(" + current.currentPos.x + "px, " + current.currentPos.y + "px) scale(" + current.scale + ")";
 }
