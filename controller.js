@@ -1,39 +1,36 @@
-function ToggleWindow(selector) {
+function OpenWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
-        if ($(`#${selector}`).css("display") === "none") OpenWindow(selector);
-        else CloseWindow(selector);
-    } else console.log(`Could not find ${selector}`);
+        $(`#${selector}`).fadeIn(duration, ease);
+        SendGAEvent("open", "window", selector);
+    } else console.warn(`Could not find ${selector}`);
 }
 
-function OpenWindow(selector) {
+function ToggleWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeIn(200);
-        if (gtagExists())
-            gtag("event", "open", {
-                event_category: "window",
-                event_label: selector,
-            });
-    } else console.log(`Could not find ${selector}`);
+        if ($(`#${selector}`).css("display") === "none")
+            OpenWindow(selector, duration, ease);
+        else CloseWindow(selector, duration, ease);
+    } else console.warn(`Could not find ${selector}`);
 }
 
-function CloseWindow(selector) {
-    console.log("I get called");
+function CloseWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeOut(200);
-        if (gtagExists())
-            gtag("event", "close", {
-                event_category: "window",
-                event_label: selector,
-            });
-    } else console.log(`Could not find ${selector}`);
+        $(`#${selector}`).fadeOut(duration, ease);
+        SendGAEvent("close", "window", selector);
+    } else console.warn(`Could not find ${selector}`);
 }
 
 function IdIsValid(selector) {
     return $(`#${selector}`).length > 0;
 }
 
-function gtagExists() {
-    return typeof gtag === "function";
+function SendGAEvent(name, event_category, event_label) {
+    if (typeof gtag === "function")
+        gtag("event", name, {
+            event_category: event_category,
+            event_label: event_label,
+        });
+    else console.warn("gtag does not exist.");
 }
 
 function HotspotAnalytics(scene) {
@@ -61,25 +58,181 @@ function UpdateProgressBar(value) {
 }
 
 //image zooming
-let scale = 0.8,
-    panning = false,
-    pointX = 0,
-    pointY = 0,
-    start = {
-        x: 0,
-        y: 0,
-    },
-    imgOverlay,
-    zoomedImgWrapper,
-    customImg;
 
+let TouchState = {
+    NONE: 0,
+    PANNING: 1,
+    PINCHING: 2,
+};
+Object.freeze(TouchState);
+
+let currentState = TouchState.NONE;
+
+class Position {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+let imgOverlay, zoomedImgWrapper, customImg;
+
+class ImageInteractionProps {
+    constructor() {
+        this.scale = 0.8;
+        this.panning = false;
+        this.pinching = false;
+        this.pinchingSensitivity = 1.03;
+        this.scrollingSensitivity = 1.05;
+        this.pinchingThreshold = 5;
+        this.previousPinch = 0;
+        this.scaleBounds = new Position(0.8, 3);
+        this.currentPos = new Position(0, 0);
+        this.startPos = new Position(0, 0);
+        this.widthDifference = 0;
+        this.heightDifference = 0;
+    }
+}
+let defaultProperties = new ImageInteractionProps();
+let current = new ImageInteractionProps();
 
 $(document).ready(function () {
+    imgOverlay = document.getElementById("img-overlay");
+    zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
+    customImg = document.getElementById("custom-img");
+
+    zoomedImgWrapper.onmousedown = function (e) { OnMouseDown(e) };
+    zoomedImgWrapper.onmousemove = function (e) { OnMouseMove(e) };
+    zoomedImgWrapper.onmouseup = function (e) { OnMouseUp(e) };
+    zoomedImgWrapper.onwheel = function (e) { OnWheel(e) };
+
+    zoomedImgWrapper.ontouchstart = function (e) { OnTouchStart(e) };
+    zoomedImgWrapper.ontouchmove = function (e) { OnTouchMove(e) };
+    zoomedImgWrapper.ontouchend = function (e) { OnTouchEnd(e) };
+
+    var scrollTimer;
+
+    //Start functions
+    function OnTouchStart(e) {
+        if (e.touches.length >= 2) {
+            currentState = TouchState.PINCHING;
+        } else if (e.touches.length == 1) {
+            currentState = TouchState.PANNING;
+            var touch = e.touches[0] || e.changedTouches[0];
+            e.preventDefault();
+            StartTouch(touch.clientX, touch.clientY);
+        }
+    }
+
+    function OnMouseDown(e) {
+        e.preventDefault();
+        StartTouch(e.clientX, e.clientY);
+        current.panning = true;
+    }
+
+    function StartTouch(positionX, positionY) {
+        current.startPos = new Position(positionX - current.currentPos.x, positionY - current.currentPos.y);
+    }
+
+    //Move functions
+    function OnTouchMove(e) {
+        if (currentState == TouchState.PANNING) {
+            var touch = e.touches[0] || e.changedTouches[0];
+            StartMove(touch.clientX, touch.clientY);
+        } else if (currentState == TouchState.PINCHING) {
+            OnPinch(e);
+        }
+    }
+
+    function OnMouseMove(e) {
+        if (!current.panning) { return; }
+        e.preventDefault();
+        StartMove(e.clientX, e.clientY);
+    }
+
+    function StartMove(positionX, positionY) {
+        setTransform(positionX - current.startPos.x, positionY - current.startPos.y);
+    }
+
+    //Scale functions
+    function OnWheel(e) {
+        e.preventDefault();
+        OnScale(e.wheelDelta ? e.wheelDelta : -e.deltaY,
+            defaultProperties.scrollingSensitivity);
+
+        let wrapperClientWidth = zoomedImgWrapper.getBoundingClientRect().width;
+        let wrapperClientHeight = zoomedImgWrapper.getBoundingClientRect().height;
+
+        let widthOverflow = wrapperClientWidth > window.innerWidth;
+        let heightOverflow = wrapperClientHeight > window.innerHeight;
+
+        clearTimeout(scrollTimer);
+
+        if (widthOverflow || heightOverflow) {
+            $("#img-overlay")
+                .find("#scaledClose").css("display", "none")
+        } else {
+            $("#img-overlay")
+                .find("#close").css("display", "none")
+        }
+
+        scrollTimer = setTimeout(function () {
+            if (widthOverflow || heightOverflow) {
+                $("#img-overlay")
+                    .find("#scaledClose").css("display", "block")
+            } else {
+                $("#img-overlay")
+                    .find("#close").css("display", "block")
+            }
+        }, 200);
+
+    }
+
+
+
+    function OnPinch(e) {
+        var currentPinch = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY);
+
+        if (current.previousPinch == 0) {
+            current.previousPinch = currentPinch;
+        } else {
+            if (Math.abs(currentPinch - current.previousPinch) > defaultProperties.pinchingThreshold) {
+                e.preventDefault();
+                if (currentPinch < current.previousPinch) OnScale(-1, defaultProperties.pinchingSensitivity);
+                else OnScale(1, defaultProperties.pinchingSensitivity);
+                current.previousPinch = currentPinch;
+            }
+        }
+    }
+
+    function OnScale(delta, sensitivity = 1.1) {
+        delta > 0 ? (current.scale *= sensitivity) : (current.scale /= sensitivity);
+        current.scale = Math.min(Math.max(current.scale, current.scaleBounds.x), current.scaleBounds.y);
+        setTransform();
+    }
+    //End functions
+    function OnMouseUp(e) {
+        e.preventDefault();
+        current.panning = false;
+    }
+
+    function OnTouchEnd(e) {
+        if (e.touches.length >= 2) {
+            currentState = TouchState.PINCHING;
+        } else if (e.touches.length === 1) {
+            current.previousPinch = 0;
+            currentState = TouchState.PANNING;
+        } else {
+            currentState = TouchState.NONE;
+        }
+    }
+
     $(".shareButton").click(function (e) {
         var viewParams = getKrpanoViewParameters();
         var url = viewParams ?
-            `${window.location.origin}?${jQuery.param(viewParams)}` :
-            window.location.origin;
+            `${window.location.href}?${jQuery.param(viewParams)}` :
+            window.location.href;
         if (navigator.share) {
             navigator.share({
                 title: `
@@ -96,47 +249,67 @@ $(document).ready(function () {
             if (!navigator.clipboard) {
                 window.prompt("Copy to clipboard: Ctrl+C, Enter", url);
             } else {
-                navigator.clipboard.writeText(window.location.origin);
+                navigator.clipboard.writeText(window.location.href);
             }
         }
     });
 
-    imgOverlay = document.getElementById("img-overlay");
-    zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
-    customImg = document.getElementById("custom-img");
-
     $("[data-window-show]").click(function (index) {
-        let eventElId = JSON.parse($(this).attr('data-window-show'))[0]?.id;
+        let eventElId = JSON.parse($(this).attr("data-window-show"))[0].id;
         OpenWindow(eventElId);
-    }
-    )
+    });
 
     $("[data-window-hide]").click(function (index) {
-        let eventElId = JSON.parse($(this).attr('data-window-hide'))[0]?.id;
+        let eventElId = JSON.parse($(this).attr("data-window-hide"))[0].id;
         CloseWindow(eventElId);
-    }
-    )
+    });
 
     $("[data-window-toggle]").click(function (index) {
-        let eventElId = JSON.parse($(this).attr('data-window-toggle'))[0]?.id;
-        if (!$(`#${eventElId}`).css('display') || $(`#${eventElId}`).css('display') == 'none') {
+        let eventElId = JSON.parse($(this).attr("data-window-toggle"))[0].id;
+        if (!$(`#${eventElId}`).css("display") ||
+            $(`#${eventElId}`).css("display") == "none"
+        ) {
             OpenWindow(eventElId);
         } else {
             CloseWindow(eventElId);
         }
-    }
-    )
+    });
 
     $("#img-overlay").click(function (e) {
         if (e.target.id == "img-overlay") {
+
             CloseWindow("img-overlay");
+            current = new ImageInteractionProps();
+            defaultProperties = new ImageInteractionProps();
+            setTimeout(() => {
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $("#custom-zoomed-img").attr("src", "");
+            }, 250)
         }
     });
 
-    $("#img-overlay")
-        .find("#close")
+    $("#close")
         .click(function () {
             CloseWindow("img-overlay");
+            current = new ImageInteractionProps();
+            defaultProperties = new ImageInteractionProps();
+            setTimeout(() => {
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $("#custom-zoomed-img").attr("src", "");
+            }, 250)
+        });
+
+    $("#img-overlay")
+        .find("#scaledClose")
+        .click(function () {
+
+            CloseWindow("img-overlay");
+            current = new ImageInteractionProps();
+            defaultProperties = new ImageInteractionProps();
+            setTimeout(() => {
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $("#custom-zoomed-img").attr("src", "");
+            }, 250)
         });
 
     $(".bg-veil").click(function (e) {
@@ -144,184 +317,17 @@ $(document).ready(function () {
     });
 
     $(".custom-img").click(function (e) {
-        OpenWindow("img-overlay");
+        $("#img-overlay").find("#scaledClose").css("display", "none")
+        $("#img-overlay").find("#close").css("display", "flex")
         $("#img-overlay").css("display", "flex");
         $("#custom-zoomed-img").attr("src", e.target.src);
+        current.widthDifference = (window.innerWidth - zoomedImgWrapper.getBoundingClientRect().width) / 2
+        current.heightDifference = (window.innerHeight - zoomedImgWrapper.getBoundingClientRect().height) / 2
+        OpenWindow("img-overlay");
     });
 
-    zoomedImgWrapper.onmousedown = function (e) {
-        e.preventDefault();
-        start = {
-            x: e.clientX - pointX,
-            y: e.clientY - pointY,
-        };
-        panning = true;
-    };
 
-    zoomedImgWrapper.onmouseup = function (e) {
-        e.preventDefault();
-        panning = false;
-    };
-
-    zoomedImgWrapper.onmousemove = function (e) {
-        e.preventDefault();
-        if (!panning) {
-            return;
-        }
-
-        let insideViewXAxis = isInViewportX(zoomedImgWrapper);
-        let insideViewYAxis = isInViewportY(zoomedImgWrapper);
-        let insideTop = insideTopBound(zoomedImgWrapper);
-        let insideBottom = insideBottomBound(zoomedImgWrapper);
-        let insideLeft = insideLeftBound(zoomedImgWrapper);
-        let insideRight = insideRightBound(zoomedImgWrapper);
-
-        let updatedPointX = e.clientX - start.x;
-        let updatedPointY = e.clientY - start.y;
-
-        if (!insideViewXAxis && !insideViewYAxis) {
-            setPointsOutsideBothViewPort(
-                insideTop,
-                insideBottom,
-                insideLeft,
-                insideRight,
-                updatedPointX,
-                updatedPointY
-            );
-        } else if (!insideViewXAxis) {
-            setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY);
-        } else if (!insideViewYAxis) {
-            setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX);
-        }
-
-        setTransform();
-    };
-
-    zoomedImgWrapper.onwheel = function (e) {
-        e.preventDefault();
-        var delta = e.wheelDelta ? e.wheelDelta : -e.deltaY;
-        delta > 0 ? (scale *= 1.2) : (scale /= 1.2);
-        if (scale > 3) {
-            scale = 3;
-        } else if (scale < 0.8) {
-            scale = 0.8;
-        }
-
-        pointX = 0;
-        pointY = 0;
-
-        setTransform();
-    };
 });
-
-function setPointsOutsideBothViewPort(
-    insideTop,
-    insideBottom,
-    insideLeft,
-    insideRight,
-    updatedPointX,
-    updatedPointY
-) {
-    if (insideTop) {
-        if (pointY > updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else if (insideBottom) {
-        if (pointY < updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else if (insideLeft) {
-        if (pointX > updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else if (insideRight) {
-        if (pointX < updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else {
-        pointX = updatedPointX;
-        pointY = updatedPointY;
-    }
-}
-
-function setPointsOutsideXViewPort(insideTop, insideBottom, updatedPointY) {
-    if (insideTop) {
-        if (pointY > updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else if (insideBottom) {
-        if (pointY < updatedPointY) {
-            pointY = updatedPointY;
-        }
-    } else {
-        pointY = updatedPointY;
-    }
-}
-
-function setPointsOutsideYViewPort(insideLeft, insideRight, updatedPointX) {
-    if (insideLeft) {
-        if (pointX > updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else if (insideRight) {
-        if (pointX < updatedPointX) {
-            pointX = updatedPointX;
-        }
-    } else {
-        pointX = updatedPointX;
-    }
-}
-
-function isInViewportY(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.left >= 0 &&
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
-}
-
-function isInViewportX(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.top >= 0 &&
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight)
-    );
-}
-
-function insideLeftBound(element) {
-    const rect = element.getBoundingClientRect();
-    return rect.left >= 0;
-}
-
-function insideRightBound(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
-}
-
-function insideTopBound(element) {
-    const rect = element.getBoundingClientRect();
-    return rect.top >= 0;
-}
-
-function insideBottomBound(element) {
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight)
-    );
-}
-
-function resetZoomVariables() {
-    scale = 0.8;
-    panning = false;
-    pointX = 0;
-    pointY = 0;
-    start = {
-        x: 0,
-        y: 0,
-    };
-}
 
 function zoomInImage() {
     imgOverlay.style.display = "flex";
@@ -331,14 +337,128 @@ function zoomInImage() {
 
 function zoomOutImage() {
     CloseWindow("img-overlay");
-    zoomedImgWrapper.style.transform = "scale(0.8) translate(0px, 0px)";
-
-    resetZoomVariables();
+    current = new ImageInteractionProps();
+    defaultProperties = new ImageInteractionProps();
+    zoomedImgWrapper.style.transform = "scale(" + defaultProperties.scale + ") translate(0 px, 0 px)";
 }
 
-function setTransform() {
+function setTransform(posX = 0, posY = 0) {
     zoomedImgWrapper.style.transform =
-        "translate(" + pointX + "px, " + pointY + "px) scale(" + scale + ")";
+        "translate(" + current.currentPos.x + "px, " + current.currentPos.y + "px) scale(" + current.scale + ")";
+
+    let translation = GetCurrentTranslation(zoomedImgWrapper);
+
+    if (posX == 0) posX = translation.x;
+    if (posY == 0) posY = translation.y;
+
+    let wrapperClientWidth = zoomedImgWrapper.getBoundingClientRect().width;
+    let wrapperClientHeight = zoomedImgWrapper.getBoundingClientRect().height;
+
+    let widthOverflow = wrapperClientWidth > window.innerWidth;
+    let heightOverflow = wrapperClientHeight > window.innerHeight;
+
+    if (widthOverflow && heightOverflow) {
+
+        $("#img-overlay")
+            .find("#close").css("display", "none")
+
+        let preTop = $("#img-overlay").find("#close").css("top")
+        $("#img-overlay")
+            .find("#scaledClose").css("top", preTop)
+
+        let preRight = $("#img-overlay").find("#close").css("right")
+        $("#img-overlay")
+            .find("#scaledClose").css("right", preRight)
+
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "block")
+
+        var clampX = (wrapperClientWidth - window.innerWidth) / 2;
+        current.currentPos.x = Math.min(Math.max(posX, -clampX), clampX);
+        var clampY = (wrapperClientHeight - window.innerHeight) / 2;
+        current.currentPos.y = Math.min(Math.max(posY, -clampY), clampY);
+
+
+    } else if (widthOverflow) {
+
+        $("#img-overlay")
+            .find("#close").css("display", "none")
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "block")
+
+        let existingDiff = current.heightDifference
+        let customH = (window.innerHeight - wrapperClientHeight) / 2;
+        let preTop = parseInt($("#img-overlay").find("#close").css("top"), 10);
+
+        if (customH >= preTop) {
+
+            let total = customH + preTop
+            $("#img-overlay")
+                .find("#scaledClose").css("top", `${total}px`)
+
+            if (existingDiff > customH) {
+                console.log("Image Width Overflow Increasing")
+            } else if (existingDiff < customH) {
+                console.log("Image Width Overflow Decreasing")
+            }
+
+            current.heightDifference = customH
+        }
+
+        var clampX = (wrapperClientWidth - window.innerWidth) / 2;
+        current.currentPos.x = Math.min(Math.max(posX, -clampX), clampX);
+
+    } else if (heightOverflow) {
+
+        $("#img-overlay")
+            .find("#close").css("display", "none")
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "block")
+
+        let existingDiff = current.widthDifference
+        let customW = (window.innerWidth - wrapperClientWidth) / 2;
+        let preRight = parseInt($("#img-overlay").find("#close").css("right"), 10);
+
+        if (customW >= preRight) {
+
+            let total = customW + preRight
+            $("#img-overlay")
+                .find("#scaledClose").css("right", `${total}px`)
+
+            if (existingDiff > customW) {
+                console.log("Image Height Overflow Increasing")
+            } else if (existingDiff < customW) {
+                console.log("Image Height Overflow Decreasing")
+            }
+
+            current.widthDifference = customW
+        }
+
+        var clampY = (wrapperClientHeight - window.innerHeight) / 2;
+        current.currentPos.y = Math.min(Math.max(posY, -clampY), clampY);
+
+    } else {
+        current.currentPos.y = 0;
+        $("#img-overlay")
+            .find("#close").css("display", "block")
+
+        $("#img-overlay")
+            .find("#scaledClose").css("display", "none")
+
+        current.currentPos.x = 0;
+    }
+
+    zoomedImgWrapper.style.transform =
+        "translate(" + current.currentPos.x + "px, " + current.currentPos.y + "px) scale(" + current.scale + ")";
+}
+
+function GetCurrentTranslation(element) {
+    const style = window.getComputedStyle(element)
+    const matrix = new DOMMatrixReadOnly(style.transform)
+    return {
+        x: matrix.m41,
+        y: matrix.m42
+    }
 }
 
 function getKrpanoViewParameters() {
@@ -346,10 +466,10 @@ function getKrpanoViewParameters() {
     if (krpano) {
         return {
             startscene: krpano.get("xml.scene"),
-            hlookat: String(krpano.get("view.hlookat")).slice(0, 5),
-            vlookat: String(krpano.get("view.vlookat")).slice(0, 5),
+            hlookat: (parseFloat(krpano.get("view.hlookat")) % 360).toFixed(2),
+            vlookat: parseFloat(krpano.get("view.vlookat")).toFixed(2),
         };
     }
-    console.log("failed to get parameters.");
+    console.warn("failed to get parameters.");
     return null;
 }
