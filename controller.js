@@ -288,7 +288,8 @@ $(document).ready(function () {
         }
     });
 
-    $("#close")
+    $("#img-overlay")
+        .find("#close")
         .click(function () {
             CloseWindow("img-overlay");
             current = new ImageInteractionProps();
