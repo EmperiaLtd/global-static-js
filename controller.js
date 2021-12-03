@@ -90,26 +90,27 @@ class ImageInteractionProps {
         this.startPos = new Position(0, 0);
         this.widthDifference = 0;
         this.heightDifference = 0;
+        this.defaultScrollTimer = 1000;
+        this.scrollTimer;
     }
 }
 let defaultProperties = new ImageInteractionProps();
 let current = new ImageInteractionProps();
 
-$(document).ready(function () {
+$(document).ready(function() {
     imgOverlay = document.getElementById("img-overlay");
     zoomedImgWrapper = document.getElementById("zoomed-img-wrapper");
     customImg = document.getElementById("custom-img");
 
-    zoomedImgWrapper.onmousedown = function (e) { OnMouseDown(e) };
-    zoomedImgWrapper.onmousemove = function (e) { OnMouseMove(e) };
-    zoomedImgWrapper.onmouseup = function (e) { OnMouseUp(e) };
-    zoomedImgWrapper.onwheel = function (e) { OnWheel(e) };
+    zoomedImgWrapper.onmousedown = function(e) { OnMouseDown(e) };
+    zoomedImgWrapper.onmousemove = function(e) { OnMouseMove(e) };
+    zoomedImgWrapper.onmouseup = function(e) { OnMouseUp(e) };
+    zoomedImgWrapper.onwheel = function(e) { OnWheel(e) };
 
-    zoomedImgWrapper.ontouchstart = function (e) { OnTouchStart(e) };
-    zoomedImgWrapper.ontouchmove = function (e) { OnTouchMove(e) };
-    zoomedImgWrapper.ontouchend = function (e) { OnTouchEnd(e) };
+    zoomedImgWrapper.ontouchstart = function(e) { OnTouchStart(e) };
+    zoomedImgWrapper.ontouchmove = function(e) { OnTouchMove(e) };
+    zoomedImgWrapper.ontouchend = function(e) { OnTouchEnd(e) };
 
-    var scrollTimer;
 
     //Start functions
     function OnTouchStart(e) {
@@ -151,6 +152,7 @@ $(document).ready(function () {
 
     function StartMove(positionX, positionY) {
         setTransform(positionX - current.startPos.x, positionY - current.startPos.y);
+        HandleCloseButton();
     }
 
     //Scale functions
@@ -158,36 +160,7 @@ $(document).ready(function () {
         e.preventDefault();
         OnScale(e.wheelDelta ? e.wheelDelta : -e.deltaY,
             defaultProperties.scrollingSensitivity);
-
-        let wrapperClientWidth = zoomedImgWrapper.getBoundingClientRect().width;
-        let wrapperClientHeight = zoomedImgWrapper.getBoundingClientRect().height;
-
-        let widthOverflow = wrapperClientWidth > window.innerWidth;
-        let heightOverflow = wrapperClientHeight > window.innerHeight;
-
-        clearTimeout(scrollTimer);
-
-        if (widthOverflow || heightOverflow) {
-            $("#img-overlay")
-                .find("#scaledClose").css("display", "none")
-        } else {
-            $("#img-overlay")
-                .find("#close").css("display", "none")
-        }
-
-        scrollTimer = setTimeout(function () {
-            if (widthOverflow || heightOverflow) {
-                $("#img-overlay")
-                    .find("#scaledClose").css("display", "block")
-            } else {
-                $("#img-overlay")
-                    .find("#close").css("display", "block")
-            }
-        }, 200);
-
     }
-
-
 
     function OnPinch(e) {
         var currentPinch = Math.hypot(
@@ -210,7 +183,38 @@ $(document).ready(function () {
         delta > 0 ? (current.scale *= sensitivity) : (current.scale /= sensitivity);
         current.scale = Math.min(Math.max(current.scale, current.scaleBounds.x), current.scaleBounds.y);
         setTransform();
+        HandleCloseButton();
     }
+
+    function HandleCloseButton() {
+
+        let wrapperClientWidth = zoomedImgWrapper.getBoundingClientRect().width;
+        let wrapperClientHeight = zoomedImgWrapper.getBoundingClientRect().height;
+
+        let widthOverflow = wrapperClientWidth > window.innerWidth;
+        let heightOverflow = wrapperClientHeight > window.innerHeight;
+
+        clearTimeout(current.scrollTimer);
+
+        if (widthOverflow || heightOverflow) {
+            $("#img-overlay")
+                .find("#scaledClose").css("display", "none")
+        } else {
+            $("#img-overlay")
+                .find("#close").css("display", "none")
+        }
+
+        current.scrollTimer = setTimeout(function() {
+            if (widthOverflow || heightOverflow) {
+                $("#img-overlay")
+                    .find("#scaledClose").fadeIn(200, "linear")
+            } else {
+                $("#img-overlay")
+                    .find("#close").fadeIn(200, "linear")
+            }
+        }, current.defaultScrollTimer);
+    }
+
     //End functions
     function OnMouseUp(e) {
         e.preventDefault();
@@ -228,7 +232,7 @@ $(document).ready(function () {
         }
     }
 
-    $(".shareButton").click(function (e) {
+    $(".shareButton").click(function(e) {
         var viewParams = getKrpanoViewParameters();
         var url = viewParams ?
             `${window.location.href}?${jQuery.param(viewParams)}` :
@@ -254,17 +258,17 @@ $(document).ready(function () {
         }
     });
 
-    $("[data-window-show]").click(function (index) {
+    $("[data-window-show]").click(function(index) {
         let eventElId = JSON.parse($(this).attr("data-window-show"))[0].id;
         OpenWindow(eventElId);
     });
 
-    $("[data-window-hide]").click(function (index) {
+    $("[data-window-hide]").click(function(index) {
         let eventElId = JSON.parse($(this).attr("data-window-hide"))[0].id;
         CloseWindow(eventElId);
     });
 
-    $("[data-window-toggle]").click(function (index) {
+    $("[data-window-toggle]").click(function(index) {
         let eventElId = JSON.parse($(this).attr("data-window-toggle"))[0].id;
         if (!$(`#${eventElId}`).css("display") ||
             $(`#${eventElId}`).css("display") == "none"
@@ -275,7 +279,7 @@ $(document).ready(function () {
         }
     });
 
-    $("#img-overlay").click(function (e) {
+    $("#img-overlay").click(function(e) {
         if (e.target.id == "img-overlay") {
 
             CloseWindow("img-overlay");
@@ -290,7 +294,7 @@ $(document).ready(function () {
 
     $("#img-overlay")
         .find("#close")
-        .click(function () {
+        .click(function() {
             CloseWindow("img-overlay");
             current = new ImageInteractionProps();
             defaultProperties = new ImageInteractionProps();
@@ -302,7 +306,7 @@ $(document).ready(function () {
 
     $("#img-overlay")
         .find("#scaledClose")
-        .click(function () {
+        .click(function() {
 
             CloseWindow("img-overlay");
             current = new ImageInteractionProps();
@@ -313,11 +317,11 @@ $(document).ready(function () {
             }, 250)
         });
 
-    $(".bg-veil").click(function (e) {
+    $(".bg-veil").click(function(e) {
         CloseWindow(e.target.parentElement.id);
     });
 
-    $(".custom-img").click(function (e) {
+    $(".custom-img").click(function(e) {
         $("#img-overlay").find("#scaledClose").css("display", "none")
         $("#img-overlay").find("#close").css("display", "flex")
         $("#img-overlay").css("display", "flex");
@@ -358,6 +362,8 @@ function setTransform(posX = 0, posY = 0) {
     let widthOverflow = wrapperClientWidth > window.innerWidth;
     let heightOverflow = wrapperClientHeight > window.innerHeight;
 
+
+
     if (widthOverflow && heightOverflow) {
 
         $("#img-overlay")
@@ -387,7 +393,7 @@ function setTransform(posX = 0, posY = 0) {
         $("#img-overlay")
             .find("#scaledClose").css("display", "block")
 
-        let existingDiff = current.heightDifference
+        let existingDiff = current.heightDifference;
         let customH = (window.innerHeight - wrapperClientHeight) / 2;
         let preTop = parseInt($("#img-overlay").find("#close").css("top"), 10);
 
