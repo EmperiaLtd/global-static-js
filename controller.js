@@ -34,12 +34,7 @@ function SendGAEvent(name, event_category, event_label) {
 }
 
 function HotspotAnalytics(scene) {
-    if (gtagExists()) {
-        gtag("event", "moveTo", {
-            event_category: "hotspot",
-            event_label: scene,
-        });
-    }
+    SendGAEvent("moveTo", "hotspot", scene);
 }
 
 function ShowProgressBar() {
