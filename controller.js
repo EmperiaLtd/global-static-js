@@ -73,12 +73,12 @@ let imgOverlay, zoomedImgWrapper, customImg;
 
 class ImageInteractionProps {
     constructor() {
-        this.scale = 0.8;
+        this.scale = 1;
         this.panning = false;
         this.pinching = false;
         this.pinchingSensitivity = 1.03;
         this.scrollingSensitivity = 1.05;
-        this.pinchingThreshold = 5;
+        this.pinchingThreshold = 4;
         this.previousPinch = 0;
         this.scaleBounds = new Position(0.8, 3);
         this.currentPos = new Position(0, 0);
@@ -220,6 +220,8 @@ $(document).ready(function() {
         if (e.touches.length >= 2) {
             currentState = TouchState.PINCHING;
         } else if (e.touches.length === 1) {
+            var touch = e.touches[0] || e.changedTouches[0];
+            StartTouch(touch.clientX, touch.clientY);
             current.previousPinch = 0;
             currentState = TouchState.PANNING;
         } else {
@@ -281,7 +283,7 @@ $(document).ready(function() {
             current = new ImageInteractionProps();
             defaultProperties = new ImageInteractionProps();
             setTimeout(() => {
-                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(1)');
                 $("#custom-zoomed-img").attr("src", "");
             }, 250)
         }
@@ -294,7 +296,7 @@ $(document).ready(function() {
             current = new ImageInteractionProps();
             defaultProperties = new ImageInteractionProps();
             setTimeout(() => {
-                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(1)');
                 $("#custom-zoomed-img").attr("src", "");
             }, 250)
         });
@@ -307,7 +309,7 @@ $(document).ready(function() {
             current = new ImageInteractionProps();
             defaultProperties = new ImageInteractionProps();
             setTimeout(() => {
-                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(0.8)');
+                $('#zoomed-img-wrapper').css('transform', 'translate(0px, 0px) scale(1)');
                 $("#custom-zoomed-img").attr("src", "");
             }, 250)
         });
