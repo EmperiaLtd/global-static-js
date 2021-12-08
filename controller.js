@@ -1,35 +1,48 @@
-function OpenWindow(selector, duration = 200, ease = "linear") {
+function OpenWindow(selector, duration = 200, ease = "linear", custom_label = "") {
     if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeIn(duration, ease);
-        SendGAEvent("open", "window", selector);
+        SendGAEvent("open", "window",
+            custom_label === "" ? TryToGetTitle(selector) : custom_label);
+        OpenWindowUI(selector, duration, ease);
     } else console.warn(`Could not find ${selector}`);
+}
+
+function OpenWindowUI(selector, duration = 200, ease = "linear") {
+    $(`#${selector}`).fadeIn(duration, ease);
+}
+
+function CloseWindow(selector, duration = 200, ease = "linear") {
+    if (IdIsValid(selector)) {
+        CloseWindowUI(selector, duration, ease);
+    } else console.warn(`Could not find ${selector}`);
+}
+
+function CloseWindowUI(selector, duration = 200, ease = "linear") {
+    $(`#${selector}`).fadeOut(duration, ease);
 }
 
 function ToggleWindow(selector, duration = 200, ease = "linear") {
     if (IdIsValid(selector)) {
         if ($(`#${selector}`).css("display") === "none")
-            OpenWindow(selector, duration, ease);
+            OpenWindow(selector, duration, selector);
         else CloseWindow(selector, duration, ease);
     } else console.warn(`Could not find ${selector}`);
 }
 
-function CloseWindow(selector, duration = 200, ease = "linear") {
-    if (IdIsValid(selector)) {
-        $(`#${selector}`).fadeOut(duration, ease);
-        SendGAEvent("close", "window", selector);
-    } else console.warn(`Could not find ${selector}`);
-}
 
 function IdIsValid(selector) {
     return $(`#${selector}`).length > 0;
 }
 
+function TryToGetTitle(selector) {
+    return $(`#${selector}`).attr('title') !== undefined && $(`#${selector}`).attr('title') !== false ? $(`#${selector}`).attr('title') : selector;
+}
+
 function SendGAEvent(name, event_category, event_label) {
-    if (typeof gtag === "function")
-        gtag("event", name, {
-            event_category: event_category,
-            event_label: event_label,
-        });
+    console.log(event_label);
+    if (typeof gtag === "function") gtag("event", name, {
+        event_category: event_category,
+        event_label: event_label,
+    });
     else console.warn("gtag does not exist.");
 }
 
@@ -325,7 +338,8 @@ $(document).ready(function() {
         $("#custom-zoomed-img").attr("src", e.target.src);
         current.widthDifference = (window.innerWidth - zoomedImgWrapper.getBoundingClientRect().width) / 2
         current.heightDifference = (window.innerHeight - zoomedImgWrapper.getBoundingClientRect().height) / 2
-        OpenWindow("img-overlay");
+        OpenWindow("img-overlay", 200, "linear", "zoomed - " +
+            e.target.title);
     });
 
 
@@ -390,7 +404,6 @@ function setTransform(posX = 0, posY = 0) {
         $("#img-overlay")
             .find("#scaledClose").css("display", "block")
 
-        let existingDiff = current.heightDifference;
         let customH = (window.innerHeight - wrapperClientHeight) / 2;
         let preTop = parseInt($("#img-overlay").find("#close").css("top"), 10);
 
@@ -399,12 +412,6 @@ function setTransform(posX = 0, posY = 0) {
             let total = customH + preTop
             $("#img-overlay")
                 .find("#scaledClose").css("top", `${total}px`)
-
-            if (existingDiff > customH) {
-                console.log("Image Width Overflow Increasing")
-            } else if (existingDiff < customH) {
-                console.log("Image Width Overflow Decreasing")
-            }
 
             current.heightDifference = customH
         }
@@ -419,7 +426,6 @@ function setTransform(posX = 0, posY = 0) {
         $("#img-overlay")
             .find("#scaledClose").css("display", "block")
 
-        let existingDiff = current.widthDifference
         let customW = (window.innerWidth - wrapperClientWidth) / 2;
         let preRight = parseInt($("#img-overlay").find("#close").css("right"), 10);
 
@@ -428,12 +434,6 @@ function setTransform(posX = 0, posY = 0) {
             let total = customW + preRight
             $("#img-overlay")
                 .find("#scaledClose").css("right", `${total}px`)
-
-            if (existingDiff > customW) {
-                console.log("Image Height Overflow Increasing")
-            } else if (existingDiff < customW) {
-                console.log("Image Height Overflow Decreasing")
-            }
 
             current.widthDifference = customW
         }
