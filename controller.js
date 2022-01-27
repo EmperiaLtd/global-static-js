@@ -245,17 +245,11 @@ $(document).ready(function() {
     $(".shareButton").click(function(e) {
         var viewParams = getKrpanoViewParameters();
         var url = viewParams ?
-            `${window.location.href}?${jQuery.param(viewParams)}` :
-            window.location.href;
+            `${window.location.href.split("?")[0]}?${jQuery.param(viewParams)}` :
+            window.location.href.split("?")[0];
         if (navigator.share) {
             navigator.share({
-                title: `
-                            Experience the ${document.title}
-                            with me.
-                            `,
-                text: `
-                            I thought you might find this interesting: ${url}
-                            `,
+                title: `Experience the ${document.title} with me.`,
                 url: url,
             });
         } else {
